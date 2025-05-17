@@ -16,6 +16,7 @@ from mergekit.merge_methods.nuslerp import NuSlerpMerge
 from mergekit.merge_methods.passthrough import PassthroughMerge
 from mergekit.merge_methods.slerp import SlerpMerge
 from mergekit.sparsify import SparsificationMethod
+from mergekit.merge_methods.diff_consensus import SkillTargetingMergeTask as DiffConsensusMerge
 
 STATIC_MERGE_METHODS: List[MergeMethod] = [
     LinearMerge(),
@@ -25,6 +26,7 @@ STATIC_MERGE_METHODS: List[MergeMethod] = [
     ModelStockMerge(),
     ArceeFusionMerge(),
     KarcherMerge(),
+    DiffConsensusMerge(),
     # generalized task arithmetic methods
     GeneralizedTaskArithmeticMerge(
         consensus_method=None,
