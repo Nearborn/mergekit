@@ -35,7 +35,7 @@ class ThreeModelMergeTask(Task[torch.Tensor]):
         return self.gather_tensors.group_label()
 
 
-class ThreeModelMerge(MergeMethod):
+class ThreeModelLinear(MergeMethod):
     def name(self) -> str:
         return "three_model_linear"
 
