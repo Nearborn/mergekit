@@ -64,11 +64,16 @@ class SkillTargetingMergeTask(Task[torch.Tensor]):
         signB = torch.sign(diffB)
         common_mask = (signA * signB) > 0  # True where both +1 or both -1
 
-        # Sum only the agreeing diffs
-        diff_common = torch.where(common_mask, diffA + diffB, torch.zeros_like(diffA))
+        merge_magnitude = 0.5  # 0.0 = no change from original model; 0.5 = halfway blend between original and average of common different values; 1.0 = full replacement with sourced models
+        
+        # Average only the diffs with same signing
+        avg_skills = 0.5 * (W_skillA + W_skillB)
+        W_new = torch.where(common_mask,
+                            torch.lerp(W_base, avg_skills, merge_magnitude),  
+                            W_base)
 
         # Apply to base
-        return W_base + diff_common
+        return W_new
 
     def group_label(self) -> Optional[str]:
         return self.gather_tensors.group_label()
