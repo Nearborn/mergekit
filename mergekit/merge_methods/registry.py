@@ -17,7 +17,7 @@ from mergekit.merge_methods.passthrough import PassthroughMerge
 from mergekit.merge_methods.slerp import SlerpMerge
 from mergekit.sparsify import SparsificationMethod
 from mergekit.merge_methods.diff_consensus import SkillTargetingMerge as DiffConsensusMerge
-from mergekit.merge_methods.diff_consensus import ThreeModelLinear as MMDiffConsensusMerge
+from mergekit.merge_methods.mm_consensus_merge import SkillTargetingConsensusMerge as MMDiffConsensusMerge
 
 STATIC_MERGE_METHODS: List[MergeMethod] = [
     LinearMerge(),
