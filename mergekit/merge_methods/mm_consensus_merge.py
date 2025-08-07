@@ -5,7 +5,7 @@ import torch
 from typing_extensions import override
 
 from mergekit.architecture import WeightInfo
-from mergekit.common import ImmutableMap, ModelReference
+from mergekit.common import ModelReference
 from mergekit.graph import Task
 from mergekit.merge_methods.base import (
     ConfigParameterDef,
@@ -15,7 +15,7 @@ from mergekit.merge_methods.base import (
 from mergekit.merge_methods.rectify_embed import rectify_embed_sizes
 
 
-class SkillTargetingMergeTask(Task[torch.Tensor]):
+class SkillTargetingConsensusMergeTask(Task[torch.Tensor]):
     def __init__(
         self,
         gather_tensors: MergeTensorInput,
@@ -30,6 +30,9 @@ class SkillTargetingMergeTask(Task[torch.Tensor]):
         self.min_diff = min_diff    # absolute threshold
         self.quantile = quantile    # if not None, use tensor‐specific threshold
 
+        assert (0 <= self.quantile <= 1) or self.quantile is None
+        assert (0 <= self.step <= 1)
+
     def uses_accelerator(self) -> bool:
         return True
 
@@ -38,13 +41,13 @@ class SkillTargetingMergeTask(Task[torch.Tensor]):
 
     def execute(self, tensors: Dict[ModelReference, torch.Tensor], **_):
         # Unpack in insertion order: base, skillA, skillB
-        Wb, Wa, Wc = tensors.values()
+        Wa, Wb, Wc = tensors.values()
 
         # Align embeddings if needed
-        rectify_embed_sizes(self.weight_info, [Wb, Wa, Wc])
+        rectify_embed_sizes(self.weight_info, [Wa, Wb, Wc])
 
         # Shape check
-        unique_shapes = {t.shape for t in [Wb, Wa, Wc]}
+        unique_shapes = {t.shape for t in [Wa, Wb, Wc]}
         if len(unique_shapes) != 1:
             raise RuntimeError(
                 f"Tensor size mismatch for {self.weight_info.name}: {unique_shapes}"
@@ -52,7 +55,7 @@ class SkillTargetingMergeTask(Task[torch.Tensor]):
 
         # Compute deltas
         diffA = Wa - Wb
-        diffB = Wc - Wb
+        diffB = Wa - Wc
 
         # Same sign mask
         signA = torch.sign(diffA)
@@ -64,9 +67,11 @@ class SkillTargetingMergeTask(Task[torch.Tensor]):
 
         # Threshold mask (quantile or fixed)
         if self.quantile is not None:
-            tA = torch.quantile(absA, self.quantile)
-            tB = torch.quantile(absB, self.quantile)
+            # Send tensors to cpu for quantile usge since torch.quantiles can fail on GPU
+            tA = torch.quantile(absA, self.quantile).cpu()
+            tB = torch.quantile(absB, self.quantile).cpu()
             thresh_mask = (absA >= tA) & (absB >= tB)
+            thresh_mask.cuda()
         else:
             thresh_mask = (absA >= self.min_diff) & (absB >= self.min_diff)
 
@@ -87,13 +92,13 @@ class SkillTargetingMergeTask(Task[torch.Tensor]):
         return self.gather_tensors.group_label()
 
 
-class SkillTargetingMerge(MergeMethod):
+class SkillTargetingConsensusMerge(MergeMethod):
     def name(self) -> str:
-        return "skill_targeting"
+        return "skill_targeting_consensus_merge"
 
     @override
     def pretty_name(self) -> Optional[str]:
-        return "Skill-Targeting Merge"
+        return "Skill-Targeting Consensus Merge"
 
     @override
     def reference_url(self) -> Optional[str]:
@@ -117,7 +122,7 @@ class SkillTargetingMerge(MergeMethod):
         parameters: Dict[str, Any],
         **_
     ) -> Task[torch.Tensor]:
-        return SkillTargetingMergeTask(
+        return SkillTargetingConsensusMergeTask(
             gather_tensors=tensors,
             weight_info=output_weight,
             step=parameters["step"],
